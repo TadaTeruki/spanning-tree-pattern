@@ -1,0 +1,177 @@
+
+<!doctype html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Go wasm</title>
+</head>
+
+<body>
+	<script src="wasm_exec.js"></script>
+	<script>
+		if (!WebAssembly.instantiateStreaming) {
+			WebAssembly.instantiateStreaming = async (resp, importObject) => {
+				const source = await (await resp).arrayBuffer();
+				return await WebAssembly.instantiate(source, importObject);
+			};
+		};
+
+		const go = new Go();
+		let mod, inst;
+		var timeout = 0;
+		var canvas, ctx;
+
+		WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+			mod = result.module;
+			inst = result.instance;
+			canvas = document.getElementById("canvas_main");
+			ctx = canvas.getContext("2d");
+
+			document.getElementById("runButton").disabled = false;
+
+			var default_img = new Image();
+			default_img.src = "default.png";
+			default_img.onload = () => {
+				ctx.drawImage(default_img, 0, 0);
+			}
+			
+		}).catch((err) => {
+			console.error(err);
+		});
+
+		async function start() {
+			clearTimeout(timeout);
+			
+			const image_width = parseInt(document.getElementById("width").value);
+			const seed =  parseInt(document.getElementById("seed").value);
+			const colorcicle =  parseFloat(document.getElementById("colorcicle").value);
+
+			if(isNaN(image_width) || isNaN(seed) || isNaN(colorcicle)) {
+				document.getElementById("error").textContent = "数字を入力してください";
+				return
+			} else if(image_width <= 0) {
+				document.getElementById("error").textContent = "縦横幅は自然数で入力してください";
+				return
+			}
+			document.getElementById("error").textContent = "";
+			
+			const image = ctx.createImageData( canvas.width, canvas.width );
+			const putPixel = ((px, py, r, g, b)=>{
+				const head = (canvas.width*py+px)*4;
+				image.data[head+0] = r;
+				image.data[head+1] = g;
+				image.data[head+2] = b;
+				image.data[head+3] = 255;
+			})
+
+			for(var iy = 0; iy < canvas.width; iy++) {
+				for(var ix = 0; ix < canvas.width; ix++) {
+					putPixel(ix, iy, 0, 0, 50); //bg
+				}
+			}
+			const iterate = () => {
+
+				const speed = parseInt(document.getElementById("speed").value)*0.01;
+				const interval = image_width*image_width*speed*0.001;
+
+				for(var i=0; i<interval; i++){
+					const itr = iterateFunc();
+					if (!itr.hasValue) {
+						ctx.putImageData(image, 0, 0);
+						return;
+					}
+					
+					const sx = Math.floor(itr.x/image_width*canvas.width), sy = Math.floor(itr.y/image_width*canvas.height);
+					const ex = Math.floor((itr.x+1)/image_width*canvas.width), ey = Math.floor((itr.y+1)/image_width*canvas.height);
+					const c = Math.sin(itr.depth*(colorcicle*Math.PI))*2.0-1.0
+					for(var iy = sy; iy < ey; iy++) {
+						for(var ix = sx; ix < ex; ix++) {
+							putPixel(ix, iy, c*255, c*255, c*255);
+						}
+					}
+				}
+
+				ctx.putImageData(image, 0, 0);
+				timeout = setTimeout(iterate, 1);
+			}
+			
+			go.run(inst);
+			setupFunc(image_width, image_width, seed);
+			iterate();
+			
+			inst = await WebAssembly.instantiate(mod, go.importObject)
+		}
+	</script>
+	<style>
+		body {
+			font-family: serif;
+		}
+
+		.base {
+			text-align: center;
+			line-height: 1.2;
+			margin-top: 5em;
+			margin-left: auto;
+			margin-right: auto;
+			margin-bottom: 20em;
+		}
+
+		p {
+			line-height: 2.0;
+		}
+
+		canvas {
+			image-rendering: pixelated;
+			image-rendering: crisp-edges;
+		}
+
+		button {
+			padding: 0.3em 0.8em;
+		}
+		
+		#error {
+			color: red;
+			font-size: small;
+		}
+
+	</style>
+
+	<div class="base">
+		<h1>全域木の描く模様</h1>
+		<h4>公開: 2023/03/09</h4>
+		<h4>制作: 多田 瑛貴</h4>
+		
+		<canvas id="canvas_main" width="500" height="500"></canvas>
+
+		<p>
+			シード値: <input type="number" id="seed" name="seed" value="0" required><br>
+			縦横幅: <input type="number" id="width" name="width" value="500" required><br>
+			着色周期: <input type="number" id="colorcicle" name="colorcicle" value="0.00025" required><br>
+			生成スピード: <input type="range" id="speed" name="speed" min="1" max="100"><br>
+			<button onClick="start()" id="runButton" disabled>生成</button>
+		</p>
+	
+		<p id="error"></p>
+		<br>
+		<h2>概要</h2>
+
+		<p>
+			この模様は、以下のような規則に基づいて生成されています:<br>
+			1. 格子状のグラフに対して、ランダムな全域木を構築する。<br>
+			2. 全域木の始点を根とし、各点の深さを導出する。<br>
+			3. 深さを任意の関数fで重み付けする。その値が<br>
+			fのとりうる最大値に近いほど白く、<br>
+			最小値に近いほど黒くなるよう<br>
+			各点に対応するピクセルを着色する。<br>
+			<br>
+			このページのモデルでは、fを以下のように定義しています。<br>
+			<img src="equation.png" width="150"></img><br>
+			ここで、cは着色周期として任意の値を取ります。<br>
+			これは深さごとの色の変化の周期を表しており、<br>
+			例えば0.01であれば、深さが100変わるごとに色が1周します。
+		</p>
+	</div>
+    
+</body>
+</html>
