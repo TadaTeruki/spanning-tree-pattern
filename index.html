@@ -22,23 +22,30 @@
 		var timeout = 0;
 		var canvas, ctx;
 
-		WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
-			mod = result.module;
-			inst = result.instance;
-			canvas = document.getElementById("canvas_main");
-			ctx = canvas.getContext("2d");
+		window.onload = () => {
+			document.getElementById("info").textContent = "wasmバイナリを読み込んでいます...(終了しない場合は, リロードしてください)";
+			WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+				mod = result.module;
+				inst = result.instance;
+				canvas = document.getElementById("canvas_main");
+				ctx = canvas.getContext("2d");
+				document.getElementById("runButton").disabled = false;
+				document.getElementById("info").textContent = "";
 
-			document.getElementById("runButton").disabled = false;
-
-			var default_img = new Image();
-			default_img.src = "default.png";
-			default_img.onload = () => {
-				ctx.drawImage(default_img, 0, 0);
-			}
+				var default_img = new Image();
+				default_img.src = "default.png";
+				default_img.onload = () => {
+					ctx.drawImage(default_img, 0, 0);
+				}
+				
+			}).catch((err) => {
+				document.getElementById("error").textContent = "wasmバイナリの読み込みに失敗しました";
+				document.getElementById("info").textContent = "";
+			});
 			
-		}).catch((err) => {
-			console.error(err);
-		});
+		}
+
+
 
 		async function start() {
 			clearTimeout(timeout);
@@ -67,7 +74,7 @@
 
 			for(var iy = 0; iy < canvas.width; iy++) {
 				for(var ix = 0; ix < canvas.width; ix++) {
-					putPixel(ix, iy, 0, 0, 50); //bg
+					putPixel(ix, iy, 0, 0, 50); //background
 				}
 			}
 			const iterate = () => {
@@ -135,12 +142,17 @@
 			font-size: small;
 		}
 
+		#info {
+			color: gray;
+			font-size: small;
+		}
+
 	</style>
 
 	<div class="base">
 		<h1>全域木の描く模様</h1>
 		<h4>公開: 2023/03/09</h4>
-		<h4>制作: 多田 瑛貴</h4>
+		<h4>制作: 多田 瑛貴 (tadateruki.public@gmail.com)</h4>
 		
 		<canvas id="canvas_main" width="500" height="500"></canvas>
 
@@ -148,28 +160,31 @@
 			シード値: <input type="number" id="seed" name="seed" value="0" required><br>
 			縦横幅: <input type="number" id="width" name="width" value="500" required><br>
 			着色周期: <input type="number" id="colorcicle" name="colorcicle" value="0.00025" required><br>
+			<br>
 			生成スピード: <input type="range" id="speed" name="speed" min="1" max="100"><br>
-			<button onClick="start()" id="runButton" disabled>生成</button>
+			<button onClick="start()" id="runButton" disabled>生成</button><br>
 		</p>
 	
 		<p id="error"></p>
+		<p id="info"></p>
 		<br>
-		<h2>概要</h2>
 
+		<h2>概要</h2>
 		<p>
 			この模様は、以下のような規則に基づいて生成されています:<br>
-			1. 格子状のグラフに対して、ランダムな全域木を構築する。<br>
-			2. 全域木の始点を根とし、各点の深さを導出する。<br>
-			3. 深さを任意の関数fで重み付けする。その値が<br>
-			fのとりうる最大値に近いほど白く、<br>
-			最小値に近いほど黒くなるよう<br>
-			各点に対応するピクセルを着色する。<br>
+			(1) 格子状のグラフに対して、ランダムな全域木を構築する。<br>
+			(2) 全域木の始点を根とし、各点の深さを導出する。<br>
+			(3) 深さを任意の関数fで重み付けする。その値が<br>
+			fのとりうる最大値に近いほど白く、最小値に近いほど<br>
+			黒くなるよう、各点に対応するピクセルを着色する。<br>
 			<br>
 			このページのモデルでは、fを以下のように定義しています。<br>
 			<img src="equation.png" width="150"></img><br>
 			ここで、cは着色周期として任意の値を取ります。<br>
 			これは深さごとの色の変化の周期を表しており、<br>
-			例えば0.01であれば、深さが100変わるごとに色が1周します。
+			例えば0.01であれば、深さが100変わるごとに色が1周します。<br>
+			<br>
+			<a href="https://github.com/TadaTeruki/spanning-tree-pattern">GitHub</a> 
 		</p>
 	</div>
     
