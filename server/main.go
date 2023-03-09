@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	port := os.Getenv("SERVER_PORT")
+	port := os.Getenv("PORT")
 	err := http.ListenAndServe(":"+port, http.FileServer(http.Dir("./")))
 	if err != nil {
 		fmt.Println("Failed to start server", err)
